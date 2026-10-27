@@ -88,6 +88,7 @@
 <div class="strip"><div class="strip-inner" id="strip"></div></div>
 
 <script src="lib/pannellum.js"></script>
+<script src="lib/images.js"></script>
 <script>
 /* ============================================================
    CẤU HÌNH — chỉnh ở đây nếu muốn đổi vị trí cửa.
@@ -107,7 +108,7 @@ const SCENES = {
   s3: { file:'img/3.jpg',      h:866, name:'Ảnh 3 · Bếp',
         doors:[ {x:1080, y:360, to:'s2',     label:'Về hành lang (ảnh 2)'},
                 {x:950,  y:410, to:'phong2', label:'Vào Phòng 2 (cửa trắng)'},
-                {x:2120, y:430, to:'toilet', label:'Vào nhà vệ sinh (cửa xanh)'},
+                {x:100,  y:470, to:'toilet', label:'Vào nhà vệ sinh (cửa xanh)'},
                 {x:2440, y:300, to:'s4',     label:'Ra sân sau (ảnh 4)'} ] },
 
   s4: { file:'img/4.jpg',      h:912, name:'Ảnh 4 · Sân sau',
@@ -143,7 +144,7 @@ for (const [id, s] of Object.entries(SCENES)) {
   scenes[id] = {
     title: s.name,
     type: 'equirectangular',
-    panorama: s.file,
+    panorama: (window.IMG && IMG[id]) || s.file,
     haov: 360, vaov: vaov(s.h), vOffset: 0,
     minPitch: -vaov(s.h)/2, maxPitch: vaov(s.h)/2,
     pitch: 0, yaw: s.doors.length ? yawOf(s.doors[0].x) : 0,
@@ -184,7 +185,7 @@ const nameEl = document.getElementById('sceneName');
 ORDER.forEach(id => {
   const b = document.createElement('button');
   b.className = 'thumb'; b.type = 'button'; b.dataset.id = id;
-  b.innerHTML = '<img alt="" src="' + SCENES[id].file + '" loading="lazy"><span>' +
+  b.innerHTML = '<img alt="" src="' + ((window.IMG && IMG[id]) || SCENES[id].file) + '" loading="lazy"><span>' +
                 SCENES[id].name.replace(/^Ảnh (\d) · /, '$1 · ') + '</span>';
   b.onclick = () => viewer.loadScene(id, 0, arrivalYaw(id, null) || scenes[id].yaw, 100);
   strip.appendChild(b);
