@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>var292 · Tham quan 360°</title>
+<link rel="stylesheet" href="lib/pannellum.css">
+<style>
+  :root{
+    --bg:#0f1412; --panel:rgba(15,20,18,.72); --line:rgba(255,255,255,.14);
+    --text:#f2f5f3; --muted:#a9b5af; --accent:#ffd36b;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+  #panorama{position:fixed;inset:0}
+
+  /* Thanh trên */
+  .top{position:fixed;left:0;right:0;top:0;z-index:5;display:flex;align-items:flex-start;
+    justify-content:space-between;gap:12px;padding:14px 16px;pointer-events:none}
+  .brand{pointer-events:auto;background:var(--panel);backdrop-filter:blur(10px);
+    border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+  .brand b{font-size:15px;letter-spacing:.04em}
+  .brand span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+  .tools{pointer-events:auto;display:flex;gap:8px}
+  .tools button{background:var(--panel);backdrop-filter:blur(10px);color:var(--text);
+    border:1px solid var(--line);border-radius:12px;padding:9px 12px;font:inherit;font-size:13px;cursor:pointer}
+  .tools button:hover{border-color:var(--accent)}
+  .tools button.on{border-color:var(--accent);color:var(--accent)}
+
+  /* Dải ảnh nhỏ phía dưới */
+  .strip{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;justify-content:center;
+    padding:0 12px calc(12px + env(safe-area-inset-bottom));pointer-events:none}
+  .strip-inner{pointer-events:auto;display:flex;gap:8px;overflow-x:auto;max-width:100%;
+    background:var(--panel);backdrop-filter:blur(10px);border:1px solid var(--line);
+    border-radius:16px;padding:8px}
+  .thumb{flex:0 0 auto;width:104px;border:2px solid transparent;border-radius:10px;overflow:hidden;
+    background:#000;cursor:pointer;padding:0;color:var(--text);text-align:left;font:inherit;position:relative}
+  .thumb img{display:block;width:100%;height:54px;object-fit:cover;opacity:.8}
+  .thumb span{display:block;font-size:11px;padding:4px 6px;background:rgba(0,0,0,.55)}
+  .thumb:hover img{opacity:1}
+  .thumb.active{border-color:var(--accent)}
+  .thumb.active img{opacity:1}
+
+  .hint{position:fixed;left:50%;top:76px;transform:translateX(-50%);z-index:4;
+    background:var(--panel);border:1px solid var(--line);border-radius:999px;
+    padding:8px 14px;font-size:12.5px;color:var(--muted);pointer-events:none;
+    transition:opacity .6s;white-space:nowrap}
+  .hint.hide{opacity:0}
+
+  /* Điểm chuyển cảnh (cửa) */
+  .pnlm-hotspot-base.door-hs{width:46px;height:46px;border-radius:50%;
+    background:rgba(255,211,107,.9);border:3px solid #fff;box-shadow:0 2px 14px rgba(0,0,0,.55);
+    animation:pulse 1.8s infinite;cursor:pointer}
+  .pnlm-hotspot-base.door-hs::before{content:"";position:absolute;inset:0;margin:auto;width:0;height:0;
+    border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid #1a1a1a;
+    top:-4px;bottom:0}
+  .pnlm-hotspot-base.door-hs span{
+    visibility:hidden;position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);
+    background:rgba(15,20,18,.92);color:#fff;border:1px solid var(--line);border-radius:8px;
+    padding:6px 10px;font-size:13px;white-space:nowrap;margin:0;width:auto;max-width:none}
+  .pnlm-hotspot-base.door-hs:hover span{visibility:visible}
+  .pnlm-hotspot-base.door-hs .lbl{visibility:visible;font-size:12px;pointer-events:none;
+    bottom:auto;top:calc(100% + 6px)}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,211,107,.7),0 2px 14px rgba(0,0,0,.55)}
+    70%{box-shadow:0 0 0 18px rgba(255,211,107,0),0 2px 14px rgba(0,0,0,.55)}
+    100%{box-shadow:0 0 0 0 rgba(255,211,107,0),0 2px 14px rgba(0,0,0,.55)}}
+
+  @media (max-width:560px){
+    .thumb{width:86px}
+    .hint{top:70px;font-size:12px}
+  }
+</style>
+</head>
+<body>
+<div id="panorama"></div>
+
+<div class="top">
+  <div class="brand"><b>var292</b><span id="sceneName">Đang tải…</span></div>
+  <div class="tools">
+    <button id="btnRotate" type="button">Tự xoay</button>
+    <button id="btnFull" type="button">Toàn màn hình</button>
+  </div>
+</div>
+
+<div class="hint" id="hint">Kéo để xoay 360° · bấm vào cửa vàng để đi tiếp</div>
+
+<div class="strip"><div class="strip-inner" id="strip"></div></div>
+
+<script src="lib/pannellum.js"></script>
+<script>
+/* ============================================================
+   CẤU HÌNH — chỉnh ở đây nếu muốn đổi vị trí cửa.
+   Mỗi cửa (door) có tọa độ ảnh: x (0–2560), y (0–chiều cao ảnh)
+   ============================================================ */
+const W = 2560;
+
+const SCENES = {
+  s1: { file:'img/1.jpg',      h:900, name:'Ảnh 1 · Nhà chính',
+        doors:[ {x:330,  y:470, to:'s2',  label:'Sang hành lang (ảnh 2)'} ] },
+
+  s2: { file:'img/2.jpg',      h:906, name:'Ảnh 2 · Hành lang',
+        doors:[ {x:670,  y:430, to:'s1',     label:'Về nhà chính (ảnh 1)'},
+                {x:300,  y:420, to:'phong1', label:'Vào Phòng 1'},
+                {x:1990, y:420, to:'s3',     label:'Sang bếp (ảnh 3)'} ] },
+
+  s3: { file:'img/3.jpg',      h:866, name:'Ảnh 3 · Bếp',
+        doors:[ {x:1080, y:360, to:'s2',     label:'Về hành lang (ảnh 2)'},
+                {x:950,  y:410, to:'phong2', label:'Vào Phòng 2 (cửa trắng)'},
+                {x:2120, y:430, to:'toilet', label:'Vào nhà vệ sinh (cửa xanh)'},
+                {x:2440, y:300, to:'s4',     label:'Ra sân sau (ảnh 4)'} ] },
+
+  s4: { file:'img/4.jpg',      h:912, name:'Ảnh 4 · Sân sau',
+        doors:[ {x:1380, y:410, to:'s3',     label:'Vào bếp (ảnh 3)'} ] },
+
+  phong1: { file:'img/phong1.jpg', h:878, name:'Phòng 1',
+        doors:[ {x:2290, y:420, to:'s2',     label:'Ra hành lang (ảnh 2)'} ] },
+
+  phong2: { file:'img/phong2.jpg', h:930, name:'Phòng 2',
+        doors:[ {x:2240, y:460, to:'s3',     label:'Ra bếp (ảnh 3)'} ] },
+
+  toilet: { file:'img/toilet.jpg', h:886, name:'Nhà vệ sinh',
+        doors:[ {x:270,  y:420, to:'s3',     label:'Ra bếp (ảnh 3)'} ] },
+};
+
+const ORDER = ['s1','s2','s3','s4','phong1','phong2','toilet'];
+
+/* ===================== Hết cấu hình ===================== */
+
+const wrap = a => ((a + 540) % 360) - 180;
+const yawOf = x => (x / W) * 360 - 180;
+const vaov  = h => (h / W) * 360;            // ảnh toàn cảnh ngang 360°
+const pitchOf = (y, h) => (0.5 - y / h) * vaov(h);
+
+/* Khi đi qua cửa, nhìn quay lưng lại cửa vừa đi vào ở cảnh mới */
+function arrivalYaw(toId, fromId){
+  const back = SCENES[toId].doors.find(d => d.to === fromId);
+  return back ? wrap(yawOf(back.x) + 180) : 0;
+}
+
+const scenes = {};
+for (const [id, s] of Object.entries(SCENES)) {
+  scenes[id] = {
+    title: s.name,
+    type: 'equirectangular',
+    panorama: s.file,
+    haov: 360, vaov: vaov(s.h), vOffset: 0,
+    minPitch: -vaov(s.h)/2, maxPitch: vaov(s.h)/2,
+    pitch: 0, yaw: s.doors.length ? yawOf(s.doors[0].x) : 0,
+    hfov: 100, minHfov: 50, maxHfov: 120,
+    hotSpots: s.doors.map(d => ({
+      pitch: pitchOf(d.y, s.h),
+      yaw: yawOf(d.x),
+      type: 'scene',
+      sceneId: d.to,
+      targetYaw: arrivalYaw(d.to, id),
+      targetPitch: 0,
+      cssClass: 'door-hs',
+      createTooltipFunc: (div, text) => {
+        const sp = document.createElement('span');
+        sp.textContent = text;
+        div.appendChild(sp);
+      },
+      createTooltipArgs: d.label,
+    })),
+  };
+}
+
+const viewer = pannellum.viewer('panorama', {
+  default: {
+    firstScene: 's1',
+    sceneFadeDuration: 900,
+    autoLoad: true,
+    showControls: true,
+    compass: false,
+    friction: 0.15,
+  },
+  scenes,
+});
+
+/* Dải ảnh nhỏ */
+const strip = document.getElementById('strip');
+const nameEl = document.getElementById('sceneName');
+ORDER.forEach(id => {
+  const b = document.createElement('button');
+  b.className = 'thumb'; b.type = 'button'; b.dataset.id = id;
+  b.innerHTML = '<img alt="" src="' + SCENES[id].file + '" loading="lazy"><span>' +
+                SCENES[id].name.replace(/^Ảnh (\d) · /, '$1 · ') + '</span>';
+  b.onclick = () => viewer.loadScene(id, 0, arrivalYaw(id, null) || scenes[id].yaw, 100);
+  strip.appendChild(b);
+});
+function refreshUI(){
+  const id = viewer.getScene();
+  nameEl.textContent = SCENES[id].name;
+  document.title = 'var292 · ' + SCENES[id].name;
+  strip.querySelectorAll('.thumb').forEach(t => {
+    const on = t.dataset.id === id;
+    t.classList.toggle('active', on);
+    if (on) t.scrollIntoView({inline:'center', block:'nearest', behavior:'smooth'});
+  });
+}
+viewer.on('load', refreshUI);
+viewer.on('scenechange', () => setTimeout(refreshUI, 50));
+
+/* Nút công cụ */
+const btnRotate = document.getElementById('btnRotate');
+let rotating = false;
+btnRotate.onclick = () => {
+  rotating = !rotating;
+  if (rotating) viewer.startAutoRotate(-6); else viewer.stopAutoRotate();
+  btnRotate.classList.toggle('on', rotating);
+};
+document.getElementById('btnFull').onclick = () => viewer.toggleFullscreen();
+
+/* Ẩn gợi ý sau vài giây hoặc khi người dùng tương tác */
+const hint = document.getElementById('hint');
+const hideHint = () => hint.classList.add('hide');
+setTimeout(hideHint, 7000);
+document.getElementById('panorama').addEventListener('pointerdown', hideHint, {once:true});
+</script>
+</body>
+</html>
